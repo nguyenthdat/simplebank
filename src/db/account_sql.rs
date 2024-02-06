@@ -82,6 +82,26 @@ mod tests {
     use super::*;
     use crate::{db::create_connection_pool, util::*};
 
+    async fn create_random_account(pool: &sqlx::PgPool) -> Result<Account> {
+        let mut tx = pool.begin().await?;
+
+        let arg = CreateAccountParams {
+            owner: random_owner(),
+            balance: random_money(),
+            currency: random_currency(),
+        };
+
+        let account: Account = sqlx::query_as(CREATE_ACCOUNT)
+            .bind(arg.owner)
+            .bind(arg.balance)
+            .bind(arg.currency)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(account)
+    }
+
     #[tokio::test]
     async fn test_create_account() {
         dotenv::dotenv().ok();
@@ -110,14 +130,40 @@ mod tests {
             .await
             .expect("Failed to create connection pool");
 
-        let arg = CreateAccountParams {
-            owner: "Alice".to_string(),
-            balance: 100,
-            currency: "USD".to_string(),
-        };
-
-        let account = create_account(&db, arg).await.unwrap();
+        let account = create_random_account(&db).await.unwrap();
         let account2 = get_account(&db, account.id).await.unwrap();
+
         assert_eq!(account, account2);
+    }
+
+    #[tokio::test]
+    async fn test_update_account() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let account = create_random_account(&db).await.unwrap();
+        let new_balance = random_money();
+        let account2 = update_account(&db, account.id, new_balance).await.unwrap();
+
+        assert_eq!(account2.balance, new_balance);
+        assert_eq!(account2.id, account.id);
+        assert_eq!(account2.owner, account.owner);
+    }
+
+    #[tokio::test]
+    async fn test_delete_account() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let account = create_random_account(&db).await.unwrap();
+        delete_account(&db, account.id).await.unwrap();
+
+        let account2 = get_account(&db, account.id).await;
+        assert!(account2.is_err());
+        assert!(account2.unwrap_err().is::<sqlx::Error>());
     }
 }
