@@ -80,7 +80,7 @@ pub async fn delete_account(pool: &sqlx::PgPool, id: i64) -> Result<()> {
 
 mod tests {
     use super::*;
-    use crate::db::create_connection_pool;
+    use crate::{db::create_connection_pool, util::*};
 
     #[tokio::test]
     async fn test_create_account() {
@@ -90,15 +90,15 @@ mod tests {
             .expect("Failed to create connection pool");
 
         let arg = CreateAccountParams {
-            owner: "Alice".to_string(),
-            balance: 100,
-            currency: "USD".to_string(),
+            owner: random_owner(),
+            balance: random_money(),
+            currency: random_currency(),
         };
 
-        let account = create_account(&db, arg).await.unwrap();
-        assert_eq!(account.owner, "Alice");
-        assert_eq!(account.balance, 100);
-        assert_eq!(account.currency, "USD");
+        let account = create_account(&db, arg.clone()).await.unwrap();
+        assert_eq!(account.owner, arg.owner);
+        assert_eq!(account.balance, arg.balance);
+        assert_eq!(account.currency, arg.currency);
 
         assert_ne!(account.id, 0);
     }

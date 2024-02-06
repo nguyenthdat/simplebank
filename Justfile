@@ -3,3 +3,6 @@ migrateup:
 
 migratedown:
     sqlx migrate revert
+
+test:
+    cargo test
