@@ -1,0 +1,30 @@
+services:
+  db:
+    container_name: postgres
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /data/postgres
+      POSTGRES_DB: simplebankdb
+    volumes:
+      - db:/data/postgres
+    ports:
+      - "5433:5432"
+    networks:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+networks:
+  db:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.57.0/24
+
+volumes:
+  db:
