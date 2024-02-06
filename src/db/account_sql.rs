@@ -14,15 +14,23 @@ static CREATE_ACCOUNT: &'static str =
 pub async fn create_account(pool: &sqlx::PgPool, arg: CreateAccountParams) -> Result<Account> {
     let mut tx = pool.begin().await?;
 
-    let account: Account = sqlx::query_as(CREATE_ACCOUNT)
+    let res = sqlx::query_as::<_, Account>(CREATE_ACCOUNT)
         .bind(arg.owner)
         .bind(arg.balance)
         .bind(arg.currency)
         .fetch_one(&mut *tx)
-        .await?;
+        .await;
 
-    tx.commit().await?;
-    Ok(account)
+    match res {
+        Ok(account) => {
+            tx.commit().await?;
+            Ok(account)
+        }
+        Err(err) => {
+            tx.rollback().await?;
+            Err(err.into())
+        }
+    }
 }
 
 static GET_ACCOUNT: &'static str = "SELECT * FROM accounts WHERE id = $1 LIMIT 1;";
@@ -54,14 +62,22 @@ static UPDATE_ACCOUNT: &'static str = "UPDATE accounts SET balance = $2 WHERE id
 pub async fn update_account(pool: &sqlx::PgPool, id: i64, balance: i64) -> Result<Account> {
     let mut tx = pool.begin().await?;
 
-    let account: Account = sqlx::query_as(UPDATE_ACCOUNT)
+    let res = sqlx::query_as::<_, Account>(UPDATE_ACCOUNT)
         .bind(id)
         .bind(balance)
         .fetch_one(&mut *tx)
-        .await?;
+        .await;
 
-    tx.commit().await?;
-    Ok(account)
+    match res {
+        Ok(account) => {
+            tx.commit().await?;
+            Ok(account)
+        }
+        Err(err) => {
+            tx.rollback().await?;
+            Err(err.into())
+        }
+    }
 }
 
 static DELETE_ACCOUNT: &'static str = "DELETE FROM accounts WHERE id = $1;";
@@ -69,12 +85,17 @@ static DELETE_ACCOUNT: &'static str = "DELETE FROM accounts WHERE id = $1;";
 pub async fn delete_account(pool: &sqlx::PgPool, id: i64) -> Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(DELETE_ACCOUNT)
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    let res = sqlx::query(DELETE_ACCOUNT).bind(id).execute(&mut *tx).await;
 
-    tx.commit().await?;
+    match res {
+        Ok(_) => {
+            tx.commit().await?;
+        }
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    }
     Ok(())
 }
 

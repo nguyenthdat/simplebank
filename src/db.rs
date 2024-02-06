@@ -2,6 +2,8 @@ use crate::prelude::*;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 pub mod account_sql;
+pub mod entry_sql;
+pub mod transfer_sql;
 
 async fn create_connection_pool(max_conn: Option<u32>) -> Result<PgPool> {
     let max_conn = max_conn.unwrap_or(5);
