@@ -6,3 +6,6 @@ migratedown:
 
 test:
     cargo test
+
+coverage:
+    cargo tarpaulin
