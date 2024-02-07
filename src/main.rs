@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+mod api;
 mod db;
 mod error;
 mod model;
