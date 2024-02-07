@@ -3,6 +3,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 
 pub mod account_sql;
 pub mod entry_sql;
+pub mod store;
 pub mod transfer_sql;
 
 async fn create_connection_pool(max_conn: Option<u32>) -> Result<PgPool> {
