@@ -94,7 +94,6 @@ mod tests {
         let pool = create_connection_pool(Some(10)).await.unwrap();
         let from_account = random_account(&pool).await.unwrap();
         let to_account = random_account(&pool).await.unwrap();
-        let amount = random_int(10, from_account.balance);
 
         // run n concurrent transfer transactions
         let n = 10;
@@ -104,7 +103,7 @@ mod tests {
             let pool = pool.clone();
             let from_account = from_account.clone();
             let to_account = to_account.clone();
-            let amount = amount;
+            let amount = random_int(10, from_account.balance);
 
             let handle = tokio::spawn(async move {
                 let result = transfer_tx(
@@ -122,7 +121,19 @@ mod tests {
             handles.push(handle);
         }
 
-        let results = futures::future::join_all(handles).await;
-        print!("{:?}", results);
+        let transfers = futures::future::join_all(handles).await;
+
+        assert_ne!(transfers.len(), 0);
+        for transfer in transfers {
+            let transfer = transfer.unwrap();
+            assert_eq!(transfer.from_account.id, from_account.id);
+            assert_eq!(transfer.to_account.id, to_account.id);
+            assert_eq!(transfer.from_entry.amount, -transfer.to_entry.amount);
+            assert_eq!(transfer.from_entry.amount, -transfer.transfer.amount);
+            assert_eq!(transfer.to_entry.amount, transfer.transfer.amount);
+            assert_ne!(transfer.transfer.id, 0);
+
+            // TODO: Check the account balances
+        }
     }
 }
