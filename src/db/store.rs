@@ -28,10 +28,22 @@ pub struct TransferTxResult {
     pub to_entry: Entry,
 }
 
+macro_rules! transaction {
+    ($tx:expr, $action:expr) => {
+        match $action.await {
+            Ok(result) => result,
+            Err(err) => {
+                $tx.rollback().await?;
+                return Err(err.into());
+            }
+        }
+    };
+}
+
 pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<TransferTxResult> {
     let mut tx = pool.begin().await?;
 
-    let transfer = create_transfer(
+    let transfer = match create_transfer(
         &mut tx,
         CreateTransferParams {
             from_account_id: arg.from_account_id,
@@ -39,33 +51,86 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
             amount: arg.amount,
         },
     )
-    .await?;
+    .await
+    {
+        Ok(transfer) => transfer,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
 
-    let from_entry = create_entry(
+    let from_entry = match create_entry(
         &mut tx,
         CreateEntryParams {
             account_id: arg.from_account_id,
             amount: -arg.amount,
         },
     )
-    .await?;
+    .await
+    {
+        Ok(entry) => entry,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
 
-    let to_entry = create_entry(
+    let to_entry = match create_entry(
         &mut tx,
         CreateEntryParams {
             account_id: arg.from_account_id,
             amount: arg.amount,
         },
     )
-    .await?;
+    .await
+    {
+        Ok(entry) => entry,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
 
-    let from_account = get_account_for_update(&mut tx, arg.from_account_id).await?;
-    let to_account = get_account_for_update(&mut tx, arg.to_account_id).await?;
+    let from_account = match get_account_for_update(&mut tx, arg.from_account_id).await {
+        Ok(account) => account,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
+    let to_account = match get_account_for_update(&mut tx, arg.to_account_id).await {
+        Ok(account) => account,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
 
-    let from_account =
-        update_account_tx(&mut tx, from_account.id, from_account.balance - arg.amount).await?;
+    let from_account = match update_account_tx(
+        &mut tx,
+        from_account.id,
+        from_account.balance - arg.amount,
+    )
+    .await
+    {
+        Ok(account) => account,
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    };
+
     let to_account =
-        update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount).await?;
+        match update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount).await {
+            Ok(account) => account,
+            Err(err) => {
+                tx.rollback().await?;
+                return Err(err.into());
+            }
+        };
+
+    tx.commit().await?;
 
     let result = TransferTxResult {
         transfer,
@@ -74,6 +139,7 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
         from_entry,
         to_entry,
     };
+
     Ok(result)
 }
 
