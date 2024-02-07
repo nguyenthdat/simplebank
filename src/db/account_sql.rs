@@ -223,4 +223,80 @@ mod tests {
         assert!(account2.is_err());
         assert!(account2.unwrap_err().is::<sqlx::Error>());
     }
+
+    #[tokio::test]
+    async fn test_list_accounts() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let limit = 10;
+        let offset = 0;
+        for _ in 0..limit {
+            random_account(&db).await.unwrap();
+        }
+
+        let accounts = list_accounts(&db, ListAccountsParams { limit, offset })
+            .await
+            .unwrap();
+
+        assert_eq!(accounts.len(), limit as usize);
+    }
+
+    #[tokio::test]
+    async fn test_add_account_balance() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let account = random_account(&db).await.unwrap();
+        let amount = random_money();
+        let mut tx = db.begin().await.unwrap();
+        let account2 = add_account_balance(
+            &mut tx,
+            AddAccountBalanceParams {
+                id: account.id,
+                amount,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(account2.balance, account.balance + amount);
+    }
+
+    #[tokio::test]
+    async fn test_update_account_tx() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let account = random_account(&db).await.unwrap();
+        let new_balance = random_money();
+        let mut tx = db.begin().await.unwrap();
+        let account2 = update_account_tx(&mut tx, account.id, new_balance)
+            .await
+            .unwrap();
+
+        assert_eq!(account2.balance, new_balance);
+        assert_eq!(account2.id, account.id);
+        assert_eq!(account2.owner, account.owner);
+    }
+
+    #[tokio::test]
+    async fn test_get_account_for_update() {
+        dotenv::dotenv().ok();
+        let db = create_connection_pool(Some(10))
+            .await
+            .expect("Failed to create connection pool");
+
+        let account = random_account(&db).await.unwrap();
+        let mut tx = db.begin().await.unwrap();
+        let account2 = get_account_for_update(&mut tx, account.id).await.unwrap();
+
+        assert_eq!(account2, account);
+    }
 }
