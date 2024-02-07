@@ -54,6 +54,7 @@ pub async fn get_account_for_update(
     Ok(account)
 }
 
+#[derive(Debug, Clone)]
 pub struct AddAccountBalanceParams {
     pub id: i64,
     pub amount: i64,
