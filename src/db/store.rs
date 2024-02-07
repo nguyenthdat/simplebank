@@ -1,6 +1,6 @@
 use crate::{
     db::{
-        account_sql,
+        account_sql::{get_account, update_account},
         entry_sql::{create_entry, CreateEntryParams},
         exec_transaction,
         transfer_sql::{create_transfer, CreateTransferParams},
@@ -8,7 +8,10 @@ use crate::{
     model::{Account, Entry, Transfer},
     prelude::*,
 };
+use futures::future::BoxFuture;
 use sqlx::PgPool;
+
+use super::account_sql::{get_account_for_update, update_account_tx};
 
 pub struct TransferTxParams {
     pub from_account_id: i64,
@@ -26,58 +29,48 @@ pub struct TransferTxResult {
 }
 
 pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<TransferTxResult> {
-    let transfer = exec_transaction(&pool, |tx| {
-        Box::pin(async move {
-            let transfer = create_transfer(
-                tx,
-                CreateTransferParams {
-                    from_account_id: arg.from_account_id,
-                    to_account_id: arg.to_account_id,
-                    amount: arg.amount,
-                },
-            )
-            .await?;
-            Ok(transfer)
-        })
-    })
+    let mut tx = pool.begin().await?;
+
+    let transfer = create_transfer(
+        &mut tx,
+        CreateTransferParams {
+            from_account_id: arg.from_account_id,
+            to_account_id: arg.to_account_id,
+            amount: arg.amount,
+        },
+    )
     .await?;
 
-    let from_entry = exec_transaction(&pool, |tx| {
-        Box::pin(async move {
-            let entry = create_entry(
-                tx,
-                CreateEntryParams {
-                    account_id: arg.from_account_id,
-                    amount: -arg.amount,
-                },
-            )
-            .await?;
-            Ok(entry)
-        })
-    })
+    let from_entry = create_entry(
+        &mut tx,
+        CreateEntryParams {
+            account_id: arg.from_account_id,
+            amount: -arg.amount,
+        },
+    )
     .await?;
 
-    let to_entry = exec_transaction(&pool, |tx| {
-        Box::pin(async move {
-            let entry = create_entry(
-                tx,
-                CreateEntryParams {
-                    account_id: arg.from_account_id,
-                    amount: arg.amount,
-                },
-            )
-            .await?;
-            Ok(entry)
-        })
-    })
+    let to_entry = create_entry(
+        &mut tx,
+        CreateEntryParams {
+            account_id: arg.from_account_id,
+            amount: arg.amount,
+        },
+    )
     .await?;
 
-    // TODO: Update the account balances
+    let from_account = get_account_for_update(&mut tx, arg.from_account_id).await?;
+    let to_account = get_account_for_update(&mut tx, arg.to_account_id).await?;
+
+    let from_account =
+        update_account_tx(&mut tx, from_account.id, from_account.balance - arg.amount).await?;
+    let to_account =
+        update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount).await?;
 
     let result = TransferTxResult {
         transfer,
-        from_account: account_sql::get_account(&pool, arg.from_account_id).await?,
-        to_account: account_sql::get_account(&pool, arg.to_account_id).await?,
+        from_account,
+        to_account,
         from_entry,
         to_entry,
     };
@@ -94,6 +87,12 @@ mod tests {
         let pool = create_connection_pool(Some(10)).await.unwrap();
         let from_account = random_account(&pool).await.unwrap();
         let to_account = random_account(&pool).await.unwrap();
+
+        println!(
+            ">> -- from_account balance before tx: {}",
+            from_account.balance
+        );
+        println!(">> -- to_account balance before tx: {}", to_account.balance);
 
         // run n concurrent transfer transactions
         let n = 10;
@@ -133,7 +132,32 @@ mod tests {
             assert_eq!(transfer.to_entry.amount, transfer.transfer.amount);
             assert_ne!(transfer.transfer.id, 0);
 
-            // TODO: Check the account balances
+            // assert_eq!(
+            //     transfer.from_account.balance + transfer.transfer.amount,
+            //     transfer.to_account.balance
+            // );
+            // assert_eq!(
+            //     transfer.to_account.balance - transfer.transfer.amount,
+            //     transfer.to_account.balance
+            // );
+            // assert_eq!(
+            //     transfer.from_account.balance - transfer.transfer.amount,
+            //     transfer.from_account.balance
+            // );
+            // assert!(transfer.from_account.balance >= 0);
+            // assert!(transfer.to_account.balance >= 0);
+            // assert!(transfer.from_account.balance <= from_account.balance);
+            // assert!(transfer.to_account.balance >= to_account.balance);
         }
+
+        println!(
+            ">> -- from_account balance after tx: {}",
+            get_account(&pool, from_account.id).await.unwrap().balance
+        );
+
+        println!(
+            ">> -- to_account balance after tx: {}",
+            get_account(&pool, to_account.id).await.unwrap().balance
+        );
     }
 }

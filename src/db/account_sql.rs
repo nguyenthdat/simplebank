@@ -40,6 +40,20 @@ pub async fn get_account(pool: &sqlx::PgPool, id: i64) -> Result<Account> {
     Ok(account)
 }
 
+pub async fn get_account_for_update(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: i64,
+) -> Result<Account> {
+    let account = sqlx::query_as!(
+        Account,
+        "SELECT * FROM accounts WHERE id = $1 LIMIT 1 FOR UPDATE;",
+        id
+    )
+    .fetch_one(&mut **transaction)
+    .await?;
+    Ok(account)
+}
+
 #[derive(Debug, Clone)]
 pub struct ListAccountsParams {
     pub limit: i64,
@@ -80,6 +94,22 @@ pub async fn update_account(pool: &sqlx::PgPool, id: i64, balance: i64) -> Resul
             Err(err.into())
         }
     }
+}
+
+pub async fn update_account_tx(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: i64,
+    balance: i64,
+) -> Result<Account> {
+    let account = sqlx::query_as!(
+        Account,
+        "UPDATE accounts SET balance = $2 WHERE id = $1 RETURNING *;",
+        id,
+        balance
+    )
+    .fetch_one(&mut **transaction)
+    .await?;
+    Ok(account)
 }
 
 pub async fn delete_account(pool: &sqlx::PgPool, id: i64) -> Result<()> {
