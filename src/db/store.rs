@@ -10,6 +10,8 @@ use crate::{
 use futures::future::BoxFuture;
 use sqlx::PgPool;
 
+use super::account_sql::{add_account_balance, AddAccountBalanceParams};
+
 macro_rules! execute_transaction {
     ($tx:expr, $action:expr) => {
         match $action.await {
@@ -74,17 +76,26 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
         )
     );
 
-    let from_account =
-        execute_transaction!(tx, get_account_for_update(&mut tx, arg.from_account_id));
     let from_account = execute_transaction!(
         tx,
-        update_account_tx(&mut tx, from_account.id, from_account.balance - arg.amount,)
+        add_account_balance(
+            &mut tx,
+            AddAccountBalanceParams {
+                id: arg.from_account_id,
+                amount: -arg.amount,
+            }
+        )
     );
 
-    let to_account = execute_transaction!(tx, get_account_for_update(&mut tx, arg.to_account_id));
     let to_account = execute_transaction!(
         tx,
-        update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount)
+        add_account_balance(
+            &mut tx,
+            AddAccountBalanceParams {
+                id: arg.to_account_id,
+                amount: arg.amount,
+            }
+        )
     );
 
     tx.commit().await?;

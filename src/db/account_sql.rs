@@ -54,6 +54,29 @@ pub async fn get_account_for_update(
     Ok(account)
 }
 
+pub struct AddAccountBalanceParams {
+    pub id: i64,
+    pub amount: i64,
+}
+
+pub async fn add_account_balance(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    arg: AddAccountBalanceParams,
+) -> Result<Account> {
+    let account = sqlx::query_as!(
+        Account,
+        "UPDATE accounts
+        SET balance = balance + $2
+        WHERE id = $1
+        RETURNING *;",
+        arg.id,
+        arg.amount
+    )
+    .fetch_one(&mut **transaction)
+    .await?;
+    Ok(account)
+}
+
 #[derive(Debug, Clone)]
 pub struct ListAccountsParams {
     pub limit: i64,
