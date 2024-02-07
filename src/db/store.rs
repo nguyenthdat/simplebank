@@ -184,4 +184,52 @@ mod tests {
             get_account(&pool, to_account.id).await.unwrap().balance
         );
     }
+
+    #[tokio::test]
+    async fn test_transfer_tx_deadlock() {
+        dotenv::dotenv().ok();
+        let pool = create_connection_pool(Some(10)).await.unwrap();
+        let from_account = random_account(&pool).await.unwrap();
+        let to_account = random_account(&pool).await.unwrap();
+
+        let amount = 10 as i64;
+
+        // run n concurrent transfer transactions
+        let n = 10;
+        let mut handles = vec![];
+
+        for i in 0..n {
+            println!(">> -- running transfer tx: {}", i);
+            let pool = pool.clone();
+            let mut from_account = from_account.clone();
+            let mut to_account = to_account.clone();
+
+            if i % 2 == 1 {
+                std::mem::swap(&mut from_account, &mut to_account);
+            }
+
+            let handle = tokio::spawn(async move {
+                let result = transfer_tx(
+                    &pool,
+                    TransferTxParams {
+                        from_account_id: from_account.id,
+                        to_account_id: to_account.id,
+                        amount,
+                    },
+                )
+                .await
+                .unwrap();
+                result
+            });
+            handles.push(handle);
+        }
+
+        let transfers = futures::future::join_all(handles).await;
+
+        assert_ne!(transfers.len(), 0);
+
+        for transfer in transfers {
+            assert!(transfer.is_ok());
+        }
+    }
 }
