@@ -1,4 +1,7 @@
-use crate::{model::Entry, prelude::*};
+use crate::{
+    model::{Entry, Transfer},
+    prelude::*,
+};
 use rand::Rng;
 
 use crate::{db::account_sql::CreateAccountParams, model::Account};
@@ -70,4 +73,25 @@ pub async fn random_entry(pool: &sqlx::PgPool, account_id: i64) -> Result<Entry>
 
     tx.commit().await?;
     Ok(entry)
+}
+
+pub async fn random_transfer(
+    pool: &sqlx::PgPool,
+    from_account_id: i64,
+    to_account_id: i64,
+    amount: i64,
+) -> Result<Transfer> {
+    let mut tx = pool.begin().await?;
+
+    let transfer: Transfer = sqlx::query_as(
+        "INSERT INTO transfers (from_account_id, to_account_id, amount) VALUES ($1, $2, $3) RETURNING *;",
+    )
+    .bind(from_account_id)
+    .bind(to_account_id)
+    .bind(amount)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(transfer)
 }
