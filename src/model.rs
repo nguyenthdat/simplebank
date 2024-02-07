@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::prelude::FromRow;
 
-#[derive(Debug, FromRow, PartialEq, Clone)]
+#[derive(Debug, FromRow, PartialEq, Clone, Default)]
 pub struct Account {
     pub id: i64,
     pub owner: String,

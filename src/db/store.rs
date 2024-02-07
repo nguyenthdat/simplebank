@@ -76,27 +76,52 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
         )
     );
 
-    let from_account = execute_transaction!(
-        tx,
-        add_account_balance(
-            &mut tx,
-            AddAccountBalanceParams {
-                id: arg.from_account_id,
-                amount: -arg.amount,
-            }
-        )
-    );
+    let mut from_account = Account::default();
+    let mut to_account = Account::default();
 
-    let to_account = execute_transaction!(
-        tx,
-        add_account_balance(
-            &mut tx,
-            AddAccountBalanceParams {
-                id: arg.to_account_id,
-                amount: arg.amount,
-            }
-        )
-    );
+    if arg.from_account_id < arg.to_account_id {
+        from_account = execute_transaction!(
+            tx,
+            add_account_balance(
+                &mut tx,
+                AddAccountBalanceParams {
+                    id: arg.from_account_id,
+                    amount: -arg.amount,
+                }
+            )
+        );
+        to_account = execute_transaction!(
+            tx,
+            add_account_balance(
+                &mut tx,
+                AddAccountBalanceParams {
+                    id: arg.to_account_id,
+                    amount: arg.amount,
+                }
+            )
+        );
+    } else {
+        to_account = execute_transaction!(
+            tx,
+            add_account_balance(
+                &mut tx,
+                AddAccountBalanceParams {
+                    id: arg.to_account_id,
+                    amount: arg.amount,
+                }
+            )
+        );
+        from_account = execute_transaction!(
+            tx,
+            add_account_balance(
+                &mut tx,
+                AddAccountBalanceParams {
+                    id: arg.from_account_id,
+                    amount: -arg.amount,
+                }
+            )
+        );
+    }
 
     tx.commit().await?;
 
