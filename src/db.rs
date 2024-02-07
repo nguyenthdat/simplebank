@@ -17,20 +17,6 @@ async fn create_connection_pool(max_conn: Option<u32>) -> Result<PgPool> {
     Ok(pool)
 }
 
-pub async fn exec_transaction<F, T>(pool: &sqlx::PgPool, f: F) -> Result<T>
-where
-    F: for<'c> FnOnce(&'c mut sqlx::Transaction<'_, sqlx::Postgres>) -> BoxFuture<'c, Result<T>>,
-{
-    let mut tx = pool.begin().await?;
-    let result = f(&mut tx).await;
-    if result.is_ok() {
-        tx.commit().await?;
-    } else {
-        tx.rollback().await?;
-    }
-    result
-}
-
 mod tests {
     use super::*;
     use crate::{
@@ -40,31 +26,4 @@ mod tests {
         },
         util::*,
     };
-
-    #[tokio::test]
-    async fn test_exec_transaction() {
-        dotenv::dotenv().ok();
-        let pool = create_connection_pool(Some(10)).await.unwrap();
-        let account = random_account(&pool).await.unwrap();
-        let amount = random_money();
-
-        let result = exec_transaction(&pool, |tx| {
-            Box::pin(async move {
-                let entry = create_entry(
-                    tx,
-                    CreateEntryParams {
-                        account_id: account.id,
-                        amount,
-                    },
-                )
-                .await?;
-                Ok(entry)
-            })
-        })
-        .await
-        .unwrap();
-
-        assert_eq!(result.account_id, account.id);
-        assert_eq!(result.amount, amount);
-    }
 }

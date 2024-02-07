@@ -1,8 +1,7 @@
 use crate::{
     db::{
-        account_sql::{get_account, update_account},
+        account_sql::{get_account_for_update, update_account_tx},
         entry_sql::{create_entry, CreateEntryParams},
-        exec_transaction,
         transfer_sql::{create_transfer, CreateTransferParams},
     },
     model::{Account, Entry, Transfer},
@@ -11,7 +10,17 @@ use crate::{
 use futures::future::BoxFuture;
 use sqlx::PgPool;
 
-use super::account_sql::{get_account_for_update, update_account_tx};
+macro_rules! execute_transaction {
+    ($tx:expr, $action:expr) => {
+        match $action.await {
+            Ok(result) => result,
+            Err(err) => {
+                $tx.rollback().await?;
+                return Err(err.into());
+            }
+        }
+    };
+}
 
 pub struct TransferTxParams {
     pub from_account_id: i64,
@@ -28,107 +37,57 @@ pub struct TransferTxResult {
     pub to_entry: Entry,
 }
 
-macro_rules! transaction {
-    ($tx:expr, $action:expr) => {
-        match $action.await {
-            Ok(result) => result,
-            Err(err) => {
-                $tx.rollback().await?;
-                return Err(err.into());
-            }
-        }
-    };
-}
-
 pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<TransferTxResult> {
     let mut tx = pool.begin().await?;
 
-    let transfer = match create_transfer(
-        &mut tx,
-        CreateTransferParams {
-            from_account_id: arg.from_account_id,
-            to_account_id: arg.to_account_id,
-            amount: arg.amount,
-        },
-    )
-    .await
-    {
-        Ok(transfer) => transfer,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
+    let transfer = execute_transaction!(
+        tx,
+        create_transfer(
+            &mut tx,
+            CreateTransferParams {
+                from_account_id: arg.from_account_id,
+                to_account_id: arg.to_account_id,
+                amount: arg.amount,
+            },
+        )
+    );
 
-    let from_entry = match create_entry(
-        &mut tx,
-        CreateEntryParams {
-            account_id: arg.from_account_id,
-            amount: -arg.amount,
-        },
-    )
-    .await
-    {
-        Ok(entry) => entry,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
+    let from_entry = execute_transaction!(
+        tx,
+        create_entry(
+            &mut tx,
+            CreateEntryParams {
+                account_id: arg.from_account_id,
+                amount: -arg.amount,
+            },
+        )
+    );
 
-    let to_entry = match create_entry(
-        &mut tx,
-        CreateEntryParams {
-            account_id: arg.from_account_id,
-            amount: arg.amount,
-        },
-    )
-    .await
-    {
-        Ok(entry) => entry,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
+    let to_entry = execute_transaction!(
+        tx,
+        create_entry(
+            &mut tx,
+            CreateEntryParams {
+                account_id: arg.from_account_id,
+                amount: arg.amount,
+            },
+        )
+    );
 
-    let from_account = match get_account_for_update(&mut tx, arg.from_account_id).await {
-        Ok(account) => account,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
-    let to_account = match get_account_for_update(&mut tx, arg.to_account_id).await {
-        Ok(account) => account,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
+    let from_account =
+        execute_transaction!(tx, get_account_for_update(&mut tx, arg.from_account_id));
 
-    let from_account = match update_account_tx(
-        &mut tx,
-        from_account.id,
-        from_account.balance - arg.amount,
-    )
-    .await
-    {
-        Ok(account) => account,
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
-        }
-    };
+    let to_account = execute_transaction!(tx, get_account_for_update(&mut tx, arg.to_account_id));
 
-    let to_account =
-        match update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount).await {
-            Ok(account) => account,
-            Err(err) => {
-                tx.rollback().await?;
-                return Err(err.into());
-            }
-        };
+    let from_account = execute_transaction!(
+        tx,
+        update_account_tx(&mut tx, from_account.id, from_account.balance - arg.amount,)
+    );
+
+    let to_account = execute_transaction!(
+        tx,
+        update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount)
+    );
 
     tx.commit().await?;
 
