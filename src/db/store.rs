@@ -76,14 +76,12 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
 
     let from_account =
         execute_transaction!(tx, get_account_for_update(&mut tx, arg.from_account_id));
-
-    let to_account = execute_transaction!(tx, get_account_for_update(&mut tx, arg.to_account_id));
-
     let from_account = execute_transaction!(
         tx,
         update_account_tx(&mut tx, from_account.id, from_account.balance - arg.amount,)
     );
 
+    let to_account = execute_transaction!(tx, get_account_for_update(&mut tx, arg.to_account_id));
     let to_account = execute_transaction!(
         tx,
         update_account_tx(&mut tx, to_account.id, to_account.balance + arg.amount)
@@ -104,7 +102,7 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
 
 mod tests {
     use super::*;
-    use crate::{db::create_connection_pool, util::*};
+    use crate::{db::account_sql::get_account, db::create_connection_pool, util::*};
 
     #[tokio::test]
     async fn test_transfer_tx() {
@@ -123,7 +121,8 @@ mod tests {
         let n = 10;
         let mut handles = vec![];
 
-        for _ in 0..n {
+        for i in 0..n {
+            println!(">> -- running transfer tx: {}", i);
             let pool = pool.clone();
             let from_account = from_account.clone();
             let to_account = to_account.clone();
@@ -157,22 +156,11 @@ mod tests {
             assert_eq!(transfer.to_entry.amount, transfer.transfer.amount);
             assert_ne!(transfer.transfer.id, 0);
 
-            // assert_eq!(
-            //     transfer.from_account.balance + transfer.transfer.amount,
-            //     transfer.to_account.balance
-            // );
-            // assert_eq!(
-            //     transfer.to_account.balance - transfer.transfer.amount,
-            //     transfer.to_account.balance
-            // );
-            // assert_eq!(
-            //     transfer.from_account.balance - transfer.transfer.amount,
-            //     transfer.from_account.balance
-            // );
-            // assert!(transfer.from_account.balance >= 0);
-            // assert!(transfer.to_account.balance >= 0);
-            // assert!(transfer.from_account.balance <= from_account.balance);
-            // assert!(transfer.to_account.balance >= to_account.balance);
+            // check account balances
+            assert_eq!(
+                transfer.from_account.balance + transfer.to_account.balance,
+                from_account.balance + to_account.balance
+            );
         }
 
         println!(

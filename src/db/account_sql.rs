@@ -46,7 +46,7 @@ pub async fn get_account_for_update(
 ) -> Result<Account> {
     let account = sqlx::query_as!(
         Account,
-        "SELECT * FROM accounts WHERE id = $1 LIMIT 1 FOR UPDATE;",
+        "SELECT * FROM accounts WHERE id = $1 LIMIT 1 FOR NO KEY UPDATE;",
         id
     )
     .fetch_one(&mut **transaction)
