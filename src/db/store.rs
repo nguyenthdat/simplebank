@@ -16,6 +16,7 @@ pub struct TransferTxParams {
     pub amount: i64,
 }
 
+#[derive(Debug, Clone)]
 pub struct TransferTxResult {
     pub transfer: Transfer,
     pub from_account: Account,
@@ -72,7 +73,15 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
     .await?;
 
     // TODO: Update the account balances
-    todo!()
+
+    let result = TransferTxResult {
+        transfer,
+        from_account: account_sql::get_account(&pool, arg.from_account_id).await?,
+        to_account: account_sql::get_account(&pool, arg.to_account_id).await?,
+        from_entry,
+        to_entry,
+    };
+    Ok(result)
 }
 
 mod tests {
@@ -85,17 +94,35 @@ mod tests {
         let pool = create_connection_pool(Some(10)).await.unwrap();
         let from_account = random_account(&pool).await.unwrap();
         let to_account = random_account(&pool).await.unwrap();
-        let amount = random_money();
+        let amount = random_int(10, from_account.balance);
 
-        let result = transfer_tx(
-            &pool,
-            TransferTxParams {
-                from_account_id: from_account.id,
-                to_account_id: to_account.id,
-                amount,
-            },
-        )
-        .await
-        .unwrap();
+        // run n concurrent transfer transactions
+        let n = 10;
+        let mut handles = vec![];
+
+        for _ in 0..n {
+            let pool = pool.clone();
+            let from_account = from_account.clone();
+            let to_account = to_account.clone();
+            let amount = amount;
+
+            let handle = tokio::spawn(async move {
+                let result = transfer_tx(
+                    &pool,
+                    TransferTxParams {
+                        from_account_id: from_account.id,
+                        to_account_id: to_account.id,
+                        amount,
+                    },
+                )
+                .await
+                .unwrap();
+                result
+            });
+            handles.push(handle);
+        }
+
+        let results = futures::future::join_all(handles).await;
+        print!("{:?}", results);
     }
 }
