@@ -1,14 +1,12 @@
 use crate::{
     db::{
-        account_sql::{get_account_for_update, update_account_tx},
         entry_sql::{create_entry, CreateEntryParams},
         transfer_sql::{create_transfer, CreateTransferParams},
     },
     model::{Account, Entry, Transfer},
     prelude::*,
 };
-use futures::future::BoxFuture;
-use sqlx::PgPool;
+use sqlx::{Executor, PgPool};
 
 use super::account_sql::{add_account_balance, AddAccountBalanceParams};
 
@@ -41,6 +39,8 @@ pub struct TransferTxResult {
 
 pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<TransferTxResult> {
     let mut tx = pool.begin().await?;
+    // tx.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;")
+    //     .await?;
 
     let transfer = execute_transaction!(
         tx,
@@ -76,8 +76,8 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
         )
     );
 
-    let mut from_account = Account::default();
-    let mut to_account = Account::default();
+    let from_account;
+    let to_account;
 
     if arg.from_account_id < arg.to_account_id {
         from_account = execute_transaction!(
