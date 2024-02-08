@@ -5,13 +5,11 @@ use tokio::net::TcpListener;
 pub struct Server {
     listener: TcpListener,
     router: Router,
-    db: PgPool,
 }
 
 pub struct ServerBuilder {
     listener: Option<TcpListener>,
     router: Option<Router>,
-    db: Option<PgPool>,
 }
 
 impl Server {
@@ -19,7 +17,6 @@ impl Server {
         ServerBuilder {
             listener: None,
             router: None,
-            db: None,
         }
     }
 
@@ -41,11 +38,6 @@ impl ServerBuilder {
         self
     }
 
-    pub fn db(mut self, db: PgPool) -> Self {
-        self.db = Some(db);
-        self
-    }
-
     pub async fn build(self) -> Server {
         let listener = match self.listener {
             Some(listener) => listener,
@@ -57,7 +49,6 @@ impl ServerBuilder {
         Server {
             listener,
             router: self.router.expect("router is required"),
-            db: self.db.expect("db is required"),
         }
     }
 }

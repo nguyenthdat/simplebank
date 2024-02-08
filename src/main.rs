@@ -8,6 +8,18 @@ mod models;
 mod prelude;
 mod utils;
 
-fn main() {
-    println!("Hello, world!");
+use api::router;
+
+use crate::api::server::Server;
+
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().ok();
+    let db = db::create_connection_pool(Some(10))
+        .await
+        .expect("Failed to create connection pool");
+
+    let router = api::router::routes(db);
+
+    let server = Server::builder().router(router).build().await;
 }

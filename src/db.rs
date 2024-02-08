@@ -7,7 +7,7 @@ pub mod entry_sql;
 pub mod store;
 pub mod transfer_sql;
 
-async fn create_connection_pool(max_conn: Option<u32>) -> Result<PgPool> {
+pub(crate) async fn create_connection_pool(max_conn: Option<u32>) -> Result<PgPool> {
     let max_conn = max_conn.unwrap_or(5);
     let database_url = std::env::var("DATABASE_URL")?;
     let pool = PgPoolOptions::new()
