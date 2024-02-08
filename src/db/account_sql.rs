@@ -1,4 +1,4 @@
-use crate::model::Account;
+use crate::models::Account;
 use crate::prelude::*;
 
 #[derive(Debug, Clone)]
@@ -157,7 +157,7 @@ pub async fn delete_account(pool: &sqlx::PgPool, id: i64) -> Result<()> {
 
 mod tests {
     use super::*;
-    use crate::{db::create_connection_pool, util::*};
+    use crate::{db::create_connection_pool, utils::*};
 
     #[tokio::test]
     async fn test_create_account() {

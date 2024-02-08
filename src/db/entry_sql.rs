@@ -1,4 +1,4 @@
-use crate::model::Entry;
+use crate::models::Entry;
 use crate::prelude::*;
 
 #[derive(Debug, Clone)]
@@ -41,8 +41,8 @@ pub async fn list_entries(pool: &sqlx::PgPool, account_id: i64) -> Result<Vec<En
 
 mod tests {
     use super::*;
-    use crate::model::Entry;
-    use crate::{db::create_connection_pool, util::*};
+    use crate::models::Entry;
+    use crate::{db::create_connection_pool, utils::*};
 
     #[tokio::test]
     async fn test_create_entry() {

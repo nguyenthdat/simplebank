@@ -3,7 +3,7 @@ use crate::{
         entry_sql::{create_entry, CreateEntryParams},
         transfer_sql::{create_transfer, CreateTransferParams},
     },
-    model::{Account, Entry, Transfer},
+    models::{Account, Entry, Transfer},
     prelude::*,
 };
 use sqlx::{Executor, PgPool};
@@ -138,7 +138,7 @@ pub async fn transfer_tx(pool: &PgPool, arg: TransferTxParams) -> Result<Transfe
 
 mod tests {
     use super::*;
-    use crate::{db::account_sql::get_account, db::create_connection_pool, util::*};
+    use crate::{db::account_sql::get_account, db::create_connection_pool, utils::*};
 
     #[tokio::test]
     async fn test_transfer_tx() {

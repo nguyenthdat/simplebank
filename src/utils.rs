@@ -1,10 +1,10 @@
 use crate::{
-    model::{Entry, Transfer},
+    models::{Entry, Transfer},
     prelude::*,
 };
 use rand::Rng;
 
-use crate::{db::account_sql::CreateAccountParams, model::Account};
+use crate::{db::account_sql::CreateAccountParams, models::Account};
 
 pub fn random_int(min: i64, max: i64) -> i64 {
     let mut rng = rand::thread_rng();

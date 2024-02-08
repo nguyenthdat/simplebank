@@ -39,7 +39,7 @@ mod tests {
             create_connection_pool,
             entry_sql::{create_entry, CreateEntryParams},
         },
-        util::*,
+        utils::*,
     };
 
     #[tokio::test]

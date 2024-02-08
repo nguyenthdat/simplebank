@@ -1,4 +1,4 @@
-use crate::model::Transfer;
+use crate::models::Transfer;
 use crate::prelude::*;
 
 #[derive(Debug, Clone)]
@@ -47,7 +47,7 @@ pub async fn list_transfers(pool: &sqlx::PgPool, account_id: i64) -> Result<Vec<
 
 mod tests {
     use super::*;
-    use crate::{db::create_connection_pool, util::*};
+    use crate::{db::create_connection_pool, utils::*};
 
     #[tokio::test]
     async fn test_create_transfer() {

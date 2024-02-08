@@ -3,9 +3,10 @@
 mod api;
 mod db;
 mod error;
-mod model;
+mod handlers;
+mod models;
 mod prelude;
-mod util;
+mod utils;
 
 fn main() {
     println!("Hello, world!");
