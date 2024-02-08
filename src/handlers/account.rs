@@ -24,10 +24,9 @@ pub async fn create_account_handler(
     State(pool): State<PgPool>,
     arg: Json<CreateAccountRequest>,
 ) -> ServerResult<Json<Account>> {
-    if arg.owner.is_empty() {
-        return Err(ServerError::CreateAccountFail);
+    if arg.owner.is_empty() || arg.currency.is_empty() {
+        return Err(ServerError::ClientError(ClientError::BadRequest));
     }
-    if arg.currency.is_empty() {}
 
     let params = CreateAccountParams {
         owner: arg.owner.clone(),
