@@ -21,5 +21,5 @@ async fn main() {
 
     let router = api::router::routes(db);
 
-    let server = Server::builder().router(router).build().await;
+    Server::builder().router(router).build().await.run().await;
 }
