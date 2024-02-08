@@ -1,5 +1,6 @@
 use crate::{
     db::account_sql::{create_account, CreateAccountParams},
+    models::Account,
     prelude::*,
 };
 use axum::{
@@ -22,7 +23,12 @@ pub struct CreateAccountRequest {
 pub async fn create_account_handler(
     State(pool): State<PgPool>,
     arg: Json<CreateAccountRequest>,
-) -> impl IntoResponse {
+) -> ServerResult<Json<Account>> {
+    if arg.owner.is_empty() {
+        return Err(ServerError::CreateAccountFail);
+    }
+    if arg.currency.is_empty() {}
+
     let params = CreateAccountParams {
         owner: arg.owner.clone(),
         balance: 0,
@@ -30,7 +36,8 @@ pub async fn create_account_handler(
     };
 
     let account = create_account(&pool, params).await.unwrap();
-    todo!()
+
+    Ok(Json(account))
 }
 
 fn internal_error<E>(err: E) -> (StatusCode, String)

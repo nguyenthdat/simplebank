@@ -1,0 +1,6 @@
+POST http://localhost:3000/accounts
+Content-Type: application/json
+{
+    "owner": "",
+    "currency": ""
+}
